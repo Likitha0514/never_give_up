@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../domain/entities/activity.dart';
 import '../../domain/entities/tracker_data.dart';
 import '../../domain/usecases/tracker_usecases.dart';
@@ -30,9 +31,7 @@ class TrackerCubit extends Cubit<TrackerState> {
     this.toggle,
     this.updateActivities,
     this.updateNickname,
-  ) : super(const TrackerState()) {
-    initialize();
-  }
+  ) : super(const TrackerState());
 
   final LoadTrackerUseCase load;
   final SaveTrackerUseCase save;
@@ -42,37 +41,79 @@ class TrackerCubit extends Cubit<TrackerState> {
 
   Future<void> initialize() async {
     final data = await load();
-    emit(TrackerState(data: data, loading: false));
+
+    emit(
+      TrackerState(
+        data: data,
+        loading: false,
+      ),
+    );
   }
 
   Future<void> saveProfile(String nickname) async {
     final data = state.data;
     if (data == null) return;
-    final updated = data.copyWith(nickname: nickname.trim());
+
+    final updated = data.copyWith(
+      nickname: nickname.trim(),
+    );
+
     await updateNickname(updated);
-    emit(state.copyWith(data: updated));
+
+    emit(
+      state.copyWith(data: updated),
+    );
   }
 
-  Future<void> setActivities(List<Activity> activities) async {
+  Future<void> setActivities(
+    List<Activity> activities,
+  ) async {
     final data = state.data;
     if (data == null) return;
-    final updated = data.copyWith(activities: activities);
+
+    final updated = data.copyWith(
+      activities: activities,
+    );
+
     await updateActivities(updated);
-    emit(state.copyWith(data: updated));
+
+    emit(
+      state.copyWith(data: updated),
+    );
   }
 
-  Future<void> toggleCompletion(String dateKey, String activityId) async {
+  Future<void> toggleCompletion(
+    String dateKey,
+    String activityId,
+  ) async {
     final data = state.data;
     if (data == null) return;
-    final updated = await toggle(data, dateKey, activityId);
-    emit(state.copyWith(data: updated));
+
+    final updated = await toggle(
+      data,
+      dateKey,
+      activityId,
+    );
+
+    emit(
+      state.copyWith(data: updated),
+    );
   }
 
   Future<void> resetProgress() async {
     final data = state.data;
     if (data == null) return;
-    final updated = data.copyWith(completions: {});
+
+    final updated = data.copyWith(
+      nickname: '',
+      activities: [],
+      completions: {},
+    );
+
     await save(updated);
-    emit(state.copyWith(data: updated));
+
+    emit(
+      state.copyWith(data: updated),
+    );
   }
 }

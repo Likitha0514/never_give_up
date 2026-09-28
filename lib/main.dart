@@ -9,32 +9,37 @@ import 'presentation/bloc/app_cubit.dart';
 import 'presentation/bloc/tracker_cubit.dart';
 import 'presentation/pages/app_shell.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
   final storage = LocalStorageDataSource();
   final repository = TrackerRepositoryImpl(storage);
+
   final load = LoadTrackerUseCase(repository);
   final save = SaveTrackerUseCase(repository);
   final toggle = ToggleCompletionUseCase(repository);
   final updateActivities = UpdateActivitiesUseCase(repository);
   final updateNickname = UpdateNicknameUseCase(repository);
 
+  final appCubit = AppCubit(load, save);
+
+  final trackerCubit = TrackerCubit(
+    load,
+    save,
+    toggle,
+    updateActivities,
+    updateNickname,
+  );
+
   runApp(
     NeverGiveUpApp(
-      appCubit: AppCubit(load, save),
-      trackerCubit: TrackerCubit(
-        load,
-        save,
-        toggle,
-        updateActivities,
-        updateNickname,
-      ),
+      appCubit: appCubit,
+      trackerCubit: trackerCubit,
     ),
   );
 }
 
-class NeverGiveUpApp extends StatelessWidget {
+class NeverGiveUpApp extends StatefulWidget {
   const NeverGiveUpApp({
     super.key,
     required this.appCubit,
@@ -45,11 +50,33 @@ class NeverGiveUpApp extends StatelessWidget {
   final TrackerCubit trackerCubit;
 
   @override
+  State<NeverGiveUpApp> createState() => _NeverGiveUpAppState();
+}
+
+class _NeverGiveUpAppState extends State<NeverGiveUpApp> {
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.appCubit.initialize();
+      widget.trackerCubit.initialize();
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.appCubit.close();
+    widget.trackerCubit.close();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider.value(value: appCubit),
-        BlocProvider.value(value: trackerCubit),
+        BlocProvider.value(value: widget.appCubit),
+        BlocProvider.value(value: widget.trackerCubit),
       ],
       child: BlocBuilder<AppCubit, AppState>(
         builder: (context, state) {

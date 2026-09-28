@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../domain/entities/tracker_data.dart';
 import '../../domain/usecases/tracker_usecases.dart';
 
@@ -26,15 +27,14 @@ class AppState {
 }
 
 class AppCubit extends Cubit<AppState> {
-  AppCubit(this.load, this.save) : super(const AppState()) {
-    initialize();
-  }
+  AppCubit(this.load, this.save) : super(const AppState());
 
   final LoadTrackerUseCase load;
   final SaveTrackerUseCase save;
 
   Future<void> initialize() async {
     final data = await load();
+
     emit(
       state.copyWith(
         status: data.nickname.trim().isEmpty
@@ -60,13 +60,24 @@ class AppCubit extends Cubit<AppState> {
     emit(state.copyWith(status: AppStatus.ready));
   }
 
-  Future<void> setTheme(TrackerData data, ThemeMode mode) async {
+  void resetToOnboarding() {
+    emit(state.copyWith(status: AppStatus.onboarding));
+  }
+
+  Future<void> setTheme(
+    TrackerData data,
+    ThemeMode mode,
+  ) async {
     final value = switch (mode) {
       ThemeMode.light => 'light',
       ThemeMode.system => 'system',
       ThemeMode.dark => 'dark',
     };
+
     await save(data.copyWith(themeMode: value));
-    emit(state.copyWith(themeMode: mode));
+
+    emit(
+      state.copyWith(themeMode: mode),
+    );
   }
 }

@@ -1,14 +1,12 @@
 import 'dart:io';
-import 'dart:math';
 import 'dart:ui' as ui;
-
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pw;
-
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_utils.dart' as dates;
 import '../../../core/utils/motivation.dart';
@@ -26,9 +24,25 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  static const MethodChannel _downloadChannel =
+      MethodChannel('never_give_up/downloads');
   final horizontalController = ScrollController();
   final screenshotKey = GlobalKey();
   int tab = 0;
+  Future<void> saveToDownloads({
+    required List<int> bytes,
+    required String fileName,
+    required String mimeType,
+  }) async {
+    await _downloadChannel.invokeMethod(
+      'saveToDownloads',
+      <String, dynamic>{
+        'bytes': Uint8List.fromList(bytes),
+        'fileName': fileName,
+        'mimeType': mimeType,
+      },
+    );
+  }
 
   @override
   void dispose() {
@@ -36,15 +50,37 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  void _scrollToToday() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !horizontalController.hasClients) return;
+
+      const double cellWidth = 47.0;
+      const int todayIndex = 30;
+
+      final double targetOffset = todayIndex * cellWidth;
+
+      horizontalController.jumpTo(
+        targetOffset.clamp(
+          0.0,
+          horizontalController.position.maxScrollExtent,
+        ),
+      );
+    });
+  }
+
+  void _goHome() {
+    setState(() {
+      tab = 0;
+    });
+
+    _scrollToToday();
+  }
+
   @override
   void initState() {
     super.initState();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (horizontalController.hasClients) {
-        horizontalController.jumpTo(30 * 47.0);
-      }
-    });
+    _scrollToToday();
   }
 
   List<DateTime> get days {
@@ -88,15 +124,23 @@ class _HomePageState extends State<HomePage> {
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     if (byteData == null) return;
 
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File(
-      '${directory.path}/never_give_up_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.png',
+    final bytes = byteData.buffer.asUint8List();
+
+    final fileName =
+        'never_give_up_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.png';
+
+    await saveToDownloads(
+      bytes: bytes,
+      fileName: fileName,
+      mimeType: 'image/png',
     );
-    await file.writeAsBytes(byteData.buffer.asUint8List());
 
     if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Saved to ${file.path}')),
+      const SnackBar(
+        content: Text('PNG saved to Downloads'),
+      ),
     );
   }
 
@@ -141,15 +185,23 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File(
-      '${directory.path}/never_give_up_report_${DateFormat('yyyyMMdd').format(DateTime.now())}.pdf',
+    final bytes = await document.save();
+
+    final fileName =
+        'never_give_up_report_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.pdf';
+
+    await saveToDownloads(
+      bytes: bytes,
+      fileName: fileName,
+      mimeType: 'application/pdf',
     );
-    await file.writeAsBytes(await document.save());
 
     if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('PDF saved to ${file.path}')),
+      const SnackBar(
+        content: Text('PDF saved to Downloads'),
+      ),
     );
   }
 
@@ -164,9 +216,13 @@ class _HomePageState extends State<HomePage> {
         }
 
         if (tab == 1)
-          return ProgressPage(onBack: () => setState(() => tab = 0));
+          return ProgressPage(
+            onBack: _goHome,
+          );
         if (tab == 2)
-          return SettingsPage(onBack: () => setState(() => tab = 0));
+          return SettingsPage(
+            onBack: _goHome,
+          );
 
         final activities =
             state.data!.activities.where((e) => e.active).toList();
@@ -239,7 +295,15 @@ class _HomePageState extends State<HomePage> {
           ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: tab,
-            onDestinationSelected: (index) => setState(() => tab = index),
+            onDestinationSelected: (index) {
+              if (index == 0) {
+                _goHome();
+              } else {
+                setState(() {
+                  tab = index;
+                });
+              }
+            },
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.grid_view_rounded),
@@ -262,11 +326,15 @@ class _HomePageState extends State<HomePage> {
               if (value == 'png') exportPng();
               if (value == 'pdf') exportPdf(state);
               if (value == 'activities') {
-                Navigator.of(context).push(
+                Navigator.of(context)
+                    .push(
                   MaterialPageRoute(
                     builder: (_) => const ActivityManagerPage(),
                   ),
-                );
+                )
+                    .then((_) {
+                  _scrollToToday();
+                });
               }
             },
             itemBuilder: (_) => const [
@@ -661,26 +729,33 @@ class _HomePageState extends State<HomePage> {
   ) {
     final today = DateUtils.dateOnly(DateTime.now());
     final date = DateUtils.dateOnly(day);
-    final future = date.isAfter(today);
+
+    final isToday = date == today;
+    final isLocked = !isToday;
+
     final done =
         state.data!.completions[dates.dayKey(day)]?[activity.id] == true;
 
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: future
-          ? null
-          : () => context.read<TrackerCubit>().toggleCompletion(
+
+      // Only today is editable.
+      onTap: isToday
+          ? () => context.read<TrackerCubit>().toggleCompletion(
                 dates.dayKey(day),
                 activity.id,
-              ),
+              )
+          : null,
+
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         width: 31,
         height: 31,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: done
               ? AppColors.primary
-              : future
+              : isLocked
                   ? Colors.transparent
                   : Theme.of(context)
                       .colorScheme
@@ -690,21 +765,33 @@ class _HomePageState extends State<HomePage> {
           border: Border.all(
             color: done
                 ? AppColors.primary
-                : Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: .11),
+                : isLocked
+                    ? Colors.transparent
+                    : Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: .11),
           ),
         ),
-        child: Icon(
-          done
-              ? Icons.check_rounded
-              : future
-                  ? Icons.remove_rounded
-                  : null,
-          size: 17,
-          color: done ? Colors.black : AppColors.muted,
-        ),
+        child: done
+            ? Icon(
+                Icons.check_rounded,
+                size: 17,
+                color: Colors.black,
+              )
+            : isLocked
+                ? Text(
+                    '-',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: .35),
+                    ),
+                  )
+                : null,
       ),
     );
   }

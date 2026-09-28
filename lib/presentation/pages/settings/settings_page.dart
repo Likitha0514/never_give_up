@@ -52,7 +52,8 @@ class SettingsPage extends StatelessWidget {
       builder: (context, trackerState) {
         final data = trackerState.data;
         if (data == null) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+              body: Center(child: CircularProgressIndicator()));
         }
 
         return Scaffold(
@@ -102,7 +103,8 @@ class SettingsPage extends StatelessWidget {
                   BlocBuilder<AppCubit, AppState>(
                     builder: (context, appState) {
                       return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 15),
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 15),
                         leading: const Icon(Icons.palette_outlined),
                         title: const Text(
                           'Theme',
@@ -152,7 +154,7 @@ class SettingsPage extends StatelessWidget {
                     context,
                     icon: Icons.restart_alt_rounded,
                     title: 'Start fresh',
-                    subtitle: 'Clear completion history, keep activities',
+                    subtitle: 'Clear all app data and start again',
                     danger: false,
                     onTap: () async {
                       final confirm = await showDialog<bool>(
@@ -160,7 +162,7 @@ class SettingsPage extends StatelessWidget {
                         builder: (context) => AlertDialog(
                           title: const Text('Start fresh?'),
                           content: const Text(
-                            'Your activities will stay, but all checkmarks and streak history will be cleared.',
+                            'Your nickname, activities, checkmarks and progress history will be cleared. You will start again from the beginning.',
                           ),
                           actions: [
                             TextButton(
@@ -177,6 +179,7 @@ class SettingsPage extends StatelessWidget {
 
                       if (confirm == true && context.mounted) {
                         await context.read<TrackerCubit>().resetProgress();
+                        context.read<AppCubit>().resetToOnboarding();
                       }
                     },
                   ),
@@ -224,10 +227,8 @@ class SettingsPage extends StatelessWidget {
             fontSize: 10,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.6,
-            color: Theme.of(context)
-                .colorScheme
-                .onSurface
-                .withValues(alpha: .5),
+            color:
+                Theme.of(context).colorScheme.onSurface.withValues(alpha: .5),
           ),
         ),
         const SizedBox(height: 9),
